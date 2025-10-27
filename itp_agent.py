@@ -12,11 +12,7 @@ from pathlib import Path
 from langchain.tools import ToolRuntime
 from langchain_core.tools import tool
 
-from copilotagent import (
-    create_deep_agent,
-    get_cute_finish_itp_subagent,
-    get_cute_linear_subagent,
-)
+from copilotagent import create_deep_agent, create_remote_subagent
 
 
 @tool
@@ -179,6 +175,32 @@ Your job is to review and approve ITP documents for mortgage applications. Use t
 planner_prompt_file = Path(__file__).parent / "planner_prompt.md"
 planning_prompt = planner_prompt_file.read_text() if planner_prompt_file.exists() else None
 
+# Define cloud subagents locally (customizable!)
+cute_linear = create_remote_subagent(
+    name="cute-linear",
+    url="https://cutelineargraph-ef1ae523c24e51ef94e330929a65833b.us.langgraph.app",
+    graph_id="cuteLinearGraph",
+    description=(
+        "Coordinated Data Extraction Agent - Performs automated GUI data extraction "
+        "including navigation, OCR via AWS Textract, and AI-powered name normalization. "
+        "Extracts borrower names from GUI interface, sends for human review, and reports "
+        "results back. Use this agent when you need to extract borrower names from the "
+        "GUI system."
+    ),
+)
+
+cute_finish_itp = create_remote_subagent(
+    name="cute-finish-itp",
+    url="https://cutefinishitp-2d3fcf81a7e55dd09a66354c5c2b567c.us.langgraph.app",
+    graph_id="cuteFinishITP",
+    description=(
+        "Encompass GUI Automation Agent - Executes a 25-step workflow for ITP document "
+        "processing including popup detection, form filling, document verification, and "
+        "final submission. Use this agent when you need to complete the ITP document "
+        "processing workflow in the Encompass GUI system."
+    ),
+)
+
 # Create the ITP-Princeton agent with cloud subagents and ITP-specific tools
 # langgraph.json loads .env before this module executes
 agent = create_deep_agent(
@@ -186,10 +208,7 @@ agent = create_deep_agent(
     system_prompt=itp_instructions,
     planning_prompt=planning_prompt,  # Use local planning prompt
     tools=[filter_borrowers_ready_for_itp],
-    subagents=[
-        get_cute_linear_subagent(),
-        get_cute_finish_itp_subagent(),
-    ],
+    subagents=[cute_linear, cute_finish_itp],  # Use local subagent definitions
 )
 
 # When this agent is invoked without messages, it will present the default message:
