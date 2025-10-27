@@ -7,6 +7,7 @@ for Princeton mortgage applications.
 import csv
 import io
 import os
+from pathlib import Path
 
 from langchain.tools import ToolRuntime
 from langchain_core.tools import tool
@@ -174,11 +175,16 @@ Your job is to review and approve ITP documents for mortgage applications. Use t
 - If no borrowers are ready, present results and END - do not attempt to process
 - Keep the user informed at each step"""
 
+# Load local planning prompt
+planner_prompt_file = Path(__file__).parent / "planner_prompt.md"
+planning_prompt = planner_prompt_file.read_text() if planner_prompt_file.exists() else None
+
 # Create the ITP-Princeton agent with cloud subagents and ITP-specific tools
 # langgraph.json loads .env before this module executes
 agent = create_deep_agent(
     agent_type="ITP-Princeton",
     system_prompt=itp_instructions,
+    planning_prompt=planning_prompt,  # Use local planning prompt
     tools=[filter_borrowers_ready_for_itp],
     subagents=[
         get_cute_linear_subagent(),
