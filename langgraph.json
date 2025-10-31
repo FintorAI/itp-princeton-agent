@@ -3,6 +3,15 @@
   "graphs": {
     "itp-princeton": "./itp_agent.py:agent"
   },
-  "env": ".env"
+  "env": ".env",
+  "crons": [
+    {
+      "schedule": "*/30 * * * *",
+      "graph": "itp-princeton",
+      "input": {
+        "messages": []
+      }
+    }
+  ]
 }
 
