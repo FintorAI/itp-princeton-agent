@@ -7,10 +7,13 @@ for Princeton mortgage applications.
 import csv
 import io
 import os
+import uuid
 from pathlib import Path
 
+from cuteagent import HumanAgent
 from langchain.tools import ToolRuntime
 from langchain_core.tools import tool
+from langgraph.config import get_config
 
 from copilotagent import create_deep_agent, create_remote_subagent
 
@@ -144,6 +147,93 @@ Please check the borrower table for status updates."""
     
     return result
 
+
+@tool
+def report_error_to_hitl(
+    error_message: str,
+    borrower_name: str | None = None,
+    loan_number: str | None = None,
+) -> str:
+    """Report an error to the Human-In-The-Loop (HITL) system for review.
+    
+    Use this tool whenever ANY subagent or tool fails during processing.
+    This sends a C1-R0 report to the HITL system so a human can review and take action.
+    
+    Common use cases:
+    - cute-finish-itp fails to process a borrower's ITP document
+    - cute-linear fails to extract borrower data
+    - Any other tool or subagent encounters an error
+    
+    Args:
+        error_message: Description of the error that occurred (REQUIRED)
+        borrower_name: Full name of the borrower if applicable (e.g., "Stewart, Lindsey Elize")
+        loan_number: Loan number if applicable (e.g., "000068825")
+        
+    Returns:
+        Confirmation message that the error was reported to HITL
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Get HITL credentials from environment
+    hitl_token = os.getenv("HITL_TOKEN")
+    hitl_url = os.getenv(
+        "HITL_URL",
+        "https://d5x1qrpuf7.execute-api.us-west-1.amazonaws.com/prod/"
+    )
+    
+    if not hitl_token:
+        logger.warning("HITL_TOKEN not set - skipping error report")
+        identifier = f"{borrower_name} (Loan: {loan_number})" if borrower_name and loan_number else "this error"
+        return f"⚠️ HITL_TOKEN not configured. Error for {identifier} was NOT reported to HITL system."
+    
+    try:
+        # Get thread_id from config
+        config = get_config()
+        thread_id = None
+        if config:
+            thread_id = config.get("configurable", {}).get("thread_id")
+        
+        if not thread_id:
+            thread_id = str(uuid.uuid4())
+            logger.warning(f"No thread_id in config, using generated UUID: {thread_id}")
+        
+        # Initialize HumanAgent
+        human_agent = HumanAgent(HITL_token=hitl_token, HITL_url=hitl_url)
+        
+        # Note: screenshot_url would need to be passed as a parameter if needed
+        # For now, we'll set it to None since we don't have runtime access
+        screenshot_url = None
+        
+        # Prepare state dictionary for C1-R0 error report
+        state_dict = {
+            "loan_number": loan_number or "UNKNOWN",
+            "borrower_name": borrower_name or "UNKNOWN",
+            "status": "error",
+            "message": error_message,
+            "screenshot_url": screenshot_url,
+            "report_type": "C1-R0",
+            "timestamp": str(uuid.uuid4()),
+        }
+        
+        # Send C1-R0 report to HITL
+        identifier = f"{borrower_name} (Loan: {loan_number})" if borrower_name and loan_number else "error"
+        logger.info(f"Sending C1-R0 error report for {identifier} to HITL...")
+        human_agent.reporting(
+            thread_id=str(thread_id),
+            thread_state=state_dict,
+            report_type="C1-R0"
+        )
+        
+        logger.info("✅ Successfully reported error to HITL")
+        return f"✅ Error reported to HITL system for {identifier}. A human reviewer will investigate and take appropriate action."
+        
+    except Exception as e:
+        logger.error(f"Failed to report error to HITL: {e}", exc_info=True)
+        identifier = f"{borrower_name} (Loan: {loan_number})" if borrower_name and loan_number else "this error"
+        return f"❌ Failed to report error to HITL system: {e}. Error for {identifier} was NOT reported."
+
+
 # Simple system prompt - detailed workflow guidance is handled by the planner
 itp_instructions = """You are an Intent to Proceed (ITP) processor for Princeton mortgage.
 
@@ -166,9 +256,16 @@ Your job is to review and approve ITP documents for mortgage applications. Use t
   - A date in "Document Date R" column
   - Dates in BOTH "eDisclosure D" columns
 
+### Error Reporting Tool:
+- **report_error_to_hitl**: Report errors to Human-In-The-Loop (HITL) system
+  - Use this whenever ANY tool or subagent fails
+  - Include borrower_name and loan_number when available
+  - Sends a C1-R0 report for human review
+
 ## Important:
 - ONLY use cute-finish-itp if the filter tool found ready borrowers
 - If no borrowers are ready, present results and END - do not attempt to process
+- **CRITICAL**: If ANY tool or subagent fails, ALWAYS use report_error_to_hitl to notify human reviewers
 - Keep the user informed at each step"""
 
 # Load local planning prompt
@@ -196,8 +293,16 @@ cute_finish_itp = create_remote_subagent(
     description=(
         "Encompass GUI Automation Agent - Executes a 25-step workflow for ITP document "
         "processing including popup detection, form filling, document verification, and "
-        "final submission. Use this agent when you need to complete the ITP document "
-        "processing workflow in the Encompass GUI system."
+        "final submission.\n\n"
+        "REQUIRED INPUTS:\n"
+        "  This agent requires the 'inputs' parameter with borrower information:\n"
+        '  inputs={{"borrower_name": "LastName, FirstName MiddleName", "loan_number": "000012345"}}\n\n'
+        "Example call:\n"
+        "  task(\n"
+        '    subagent_type="cute-finish-itp",\n'
+        '    description="Complete ITP processing workflow",\n'
+        '    inputs={{"borrower_name": "Stewart, Lindsey Elize", "loan_number": "000068825"}}\n'
+        "  )"
     ),
 )
 
@@ -207,7 +312,7 @@ agent = create_deep_agent(
     agent_type="ITP-Princeton",
     system_prompt=itp_instructions,
     planning_prompt=planning_prompt,  # Use local planning prompt
-    tools=[filter_borrowers_ready_for_itp],
+    tools=[filter_borrowers_ready_for_itp, report_error_to_hitl],
     subagents=[cute_linear, cute_finish_itp],  # Use local subagent definitions
 )
 
