@@ -309,10 +309,18 @@ planner_prompt_file = Path(__file__).parent / "planner_prompt.md"
 planning_prompt = planner_prompt_file.read_text() if planner_prompt_file.exists() else None
 
 # Define cloud subagents locally (customizable!)
-# Station ID for syncing subagent results
-# This can be set via ITP_STATION_ID env var or uses a default
-# Note: Can't use get_config() here (outside runnable context)
-STATION_ID = os.getenv("ITP_STATION_ID", "itp-princeton-prod-station")
+# Get current thread_id to use as station_id for data syncing
+def get_current_thread_id():
+    """Get current thread_id from LangGraph config."""
+    config = get_config()
+    if config:
+        thread_id = config.get("configurable", {}).get("thread_id")
+        if thread_id:
+            return thread_id
+    return "itp-princeton-default-station"
+
+# Calculate station_id for this agent instance
+current_station_id = get_current_thread_id()
 
 cute_linear = create_remote_subagent(
     name="cute-linear",
@@ -328,7 +336,7 @@ cute_linear = create_remote_subagent(
     middleware_config={
         "station": {
             "variables": ["borrower_names", "reason_code"],
-            "station_id": STATION_ID  # Set via ITP_STATION_ID env var or default
+            "station_id": current_station_id  # Explicitly calculated here
         },
         "server": {
             "server_id": "princetonProd",
