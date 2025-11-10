@@ -160,7 +160,7 @@ Uses `filter_borrowers_ready_for_itp` tool to:
 ITP-Princeton/
 ├── itp_agent.py           # Agent implementation
 ├── planner_prompt.md      # Custom planning workflow (editable!)
-├── requirements.txt       # Dependencies (copilotagent>=0.1.8)
+├── requirements.txt       # Dependencies (copilotagent>=0.1.20)
 ├── langgraph.json         # LangGraph Cloud config
 ├── .env                   # Environment variables (not in git)
 ├── .gitignore             # Python + LangGraph ignores
@@ -267,7 +267,7 @@ git push origin main
 ## 📊 Dependencies
 
 ```txt
-copilotagent>=0.1.8      # Core framework (from PyPI)
+copilotagent>=0.1.20     # Core framework (from PyPI)
 langchain>=1.0.0         # LangChain framework
 langchain-anthropic>=1.0.0  # Claude model
 langchain-core>=1.0.0    # LangChain core
@@ -316,7 +316,7 @@ result = agent.invoke({
 ## 🐛 Troubleshooting
 
 ### Error: "No module named 'dotenv'"
-**Fix**: Update to `copilotagent>=0.1.7`
+**Fix**: Update to `copilotagent>=0.1.20`
 
 ### Error: "API key environment variable is required"
 **Fix**: Ensure `.env` file has `LANGCHAIN_API_KEY`
@@ -341,7 +341,7 @@ result = agent.invoke({
 ## ✅ Current Status
 
 - ✅ Deployed to GitHub: https://github.com/FintorAI/itp-princeton-agent
-- ✅ Using copilotagent v0.1.8 from PyPI
+- ✅ Using copilotagent v0.1.20 from PyPI
 - ✅ Custom planning prompt: `planner_prompt.md`
 - ✅ Cloud subagents integrated
 - ✅ Auto-deploy on push enabled
