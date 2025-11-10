@@ -32,7 +32,7 @@ cd /Users/masoud/Desktop/WORK/DeepCopilotAgent2/agents/ITP-Princeton
 pip uninstall copilotagent -y
 
 # Install from PyPI
-pip install copilotagent==0.1.14
+pip install copilotagent==0.1.20
 
 # Or install from requirements.txt
 pip install -r requirements.txt
@@ -65,7 +65,7 @@ echo "✅ Switched to LOCAL copilotagent"
 cd /Users/masoud/Desktop/WORK/DeepCopilotAgent2 && \
 source venv/bin/activate && \
 pip uninstall copilotagent -y && \
-pip install copilotagent==0.1.14 && \
+pip install copilotagent==0.1.20 && \
 echo "✅ Switched to PyPI copilotagent"
 ```
 
@@ -86,7 +86,7 @@ Add this comment block at the top of `itp_agent.py` to document the setup:
 #   pip uninstall copilotagent -y && pip install -e .
 #
 # TO USE PYPI VERSION (production):
-#   pip uninstall copilotagent -y && pip install copilotagent==0.1.14
+#   pip uninstall copilotagent -y && pip install copilotagent==0.1.20
 #
 # VERIFY WHICH VERSION IS ACTIVE:
 #   python3 -c "import copilotagent; print(copilotagent.__file__)"
@@ -237,7 +237,7 @@ When middleware_config changes are ready for release:
 | Task | Command |
 |------|---------|
 | Switch to Local | `pip uninstall copilotagent -y && pip install -e baseCopilotAgent` |
-| Switch to PyPI | `pip uninstall copilotagent -y && pip install copilotagent==0.1.14` |
+| Switch to PyPI | `pip uninstall copilotagent -y && pip install copilotagent==0.1.20` |
 | Check Version | `python3 -c "import copilotagent; print(copilotagent.__file__)"` |
 | Test Features | `python3 -c "from copilotagent import create_remote_subagent; import inspect; print(list(inspect.signature(create_remote_subagent).parameters))"` |
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The ITP-Princeton agent now supports optional Station and Server middleware from `copilotagent>=0.1.14` for coordinating tool execution with CuteAgent's StationAgent.
+The ITP-Princeton agent now supports optional Station and Server middleware from `copilotagent>=0.1.20` for coordinating tool execution with CuteAgent's StationAgent.
 
 ## Environment Variables Required
 
@@ -182,7 +182,7 @@ python3 -c "from cuteagent import StationAgent; print('✅ StationAgent availabl
 
 ## Current Status
 
-- ✅ `copilotagent>=0.1.14` with middleware support
+- ✅ `copilotagent>=0.1.20` with middleware support
 - ✅ `cuteagent>=0.2.24` already included
 - ✅ Compatible with existing cute-linear integration
 - ⚠️ Middleware are **optional** - tools work without them

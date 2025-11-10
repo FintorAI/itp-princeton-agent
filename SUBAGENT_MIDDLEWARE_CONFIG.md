@@ -275,7 +275,7 @@ middleware_config={
 ## Next Steps
 
 1. ✅ **ITP-Princeton agent updated** with flexible station_id configuration
-2. ✅ **copilotagent 0.1.14 installed** with enhanced create_remote_subagent
+2. ✅ **copilotagent 0.1.20 installed** with enhanced create_remote_subagent
 3. ⚠️ **Configure .env** with `STATION_THREAD_ID` (or use default)
 4. 🔲 **Update cute-linear graph** to read and apply middleware config
 5. 🔲 **Update cute-finish-itp graph** to read and apply middleware config
@@ -283,6 +283,6 @@ middleware_config={
 ---
 
 **Status**: ✅ Parent configuration complete  
-**Version**: copilotagent 0.1.14  
+**Version**: copilotagent 0.1.20  
 **Updated**: November 1, 2025
 
