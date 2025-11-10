@@ -4,11 +4,38 @@ This agent is specialized for reviewing and approving Intent to Proceed document
 for Princeton mortgage applications.
 """
 
+# ==============================================================================
+# DEVELOPMENT MODE CONFIGURATION
+# ==============================================================================
+# Set USE_LOCAL_COPILOTAGENT=true in .env to use local development version
+# Set USE_LOCAL_COPILOTAGENT=false (or omit) to use PyPI version
+#
+# Local version enables testing unreleased features like:
+#   - middleware_config parameter in create_remote_subagent
+#   - New Station and Server middleware capabilities
+#
+# Installation (one-time setup):
+#   pip install -e /Users/masoud/Desktop/WORK/DeepCopilotAgent2/baseCopilotAgent
+# ==============================================================================
+
 import csv
 import io
 import os
+import sys
 import uuid
 from pathlib import Path
+
+# Check if we should use local copilotagent
+USE_LOCAL = os.getenv("USE_LOCAL_COPILOTAGENT", "false").lower() == "true"
+
+if USE_LOCAL:
+    # Add local baseCopilotAgent to path
+    local_path = Path(__file__).parent.parent.parent / "baseCopilotAgent" / "src"
+    if local_path.exists():
+        sys.path.insert(0, str(local_path))
+        print(f"🔧 DEV MODE: Using LOCAL copilotagent from {local_path}")
+    else:
+        print(f"⚠️  LOCAL path not found: {local_path}, falling back to installed version")
 
 from cuteagent import HumanAgent
 from langchain.tools import ToolRuntime
@@ -16,6 +43,15 @@ from langchain_core.tools import tool
 from langgraph.config import get_config
 
 from copilotagent import create_deep_agent, create_remote_subagent
+
+# Verify which version is loaded
+import copilotagent
+if USE_LOCAL and "baseCopilotAgent" in copilotagent.__file__:
+    print(f"✅ Using LOCAL copilotagent: {copilotagent.__file__}")
+elif not USE_LOCAL and "site-packages" in copilotagent.__file__:
+    print(f"✅ Using PyPI copilotagent: {copilotagent.__file__}")
+else:
+    print(f"⚠️  Version mismatch - Expected {'LOCAL' if USE_LOCAL else 'PyPI'}, got: {copilotagent.__file__}")
 
 
 @tool
@@ -273,6 +309,19 @@ planner_prompt_file = Path(__file__).parent / "planner_prompt.md"
 planning_prompt = planner_prompt_file.read_text() if planner_prompt_file.exists() else None
 
 # Define cloud subagents locally (customizable!)
+# Get current thread_id to use as station_id for data syncing
+def get_current_thread_id():
+    """Get current thread_id from LangGraph config."""
+    config = get_config()
+    if config:
+        thread_id = config.get("configurable", {}).get("thread_id")
+        if thread_id:
+            return thread_id
+    return "itp-princeton-default-station"
+
+# Calculate station_id for this agent instance
+current_station_id = get_current_thread_id()
+
 cute_linear = create_remote_subagent(
     name="cute-linear",
     url="https://cutelineargraph-ef1ae523c24e51ef94e330929a65833b.us.langgraph.app",
@@ -284,6 +333,17 @@ cute_linear = create_remote_subagent(
         "results back. Use this agent when you need to extract borrower names from the "
         "GUI system."
     ),
+    middleware_config={
+        "station": {
+            "variables": ["borrower_names", "reason_code"],
+            "station_id": current_station_id  # Explicitly calculated here
+        },
+        "server": {
+            "server_id": "princetonProd",
+            "checkpoint": "Home",
+            "server_index": 0
+        }
+    },
 )
 
 cute_finish_itp = create_remote_subagent(
@@ -304,6 +364,17 @@ cute_finish_itp = create_remote_subagent(
         '    inputs={{"borrower_name": "Stewart, Lindsey Elize", "loan_number": "000068825"}}\n'
         "  )"
     ),
+    middleware_config={
+        "station": {
+            "variables": ["borrower_names", "reason_code"],
+            "station_id": STATION_ID  # Set via ITP_STATION_ID env var or default
+        },
+        "server": {
+            "server_id": "princetonProd",
+            "checkpoint": "Home",
+            "server_index": 0
+        }
+    },
 )
 
 # Create the ITP-Princeton agent with cloud subagents and ITP-specific tools
@@ -314,6 +385,15 @@ agent = create_deep_agent(
     planning_prompt=planning_prompt,  # Use local planning prompt
     tools=[filter_borrowers_ready_for_itp, report_error_to_hitl],
     subagents=[cute_linear, cute_finish_itp],  # Use local subagent definitions
+    # Note: station_thread_id for station syncing will be automatically resolved from:
+    # 1. Agent state (if you set state["station_thread_id"])
+    # 2. Parent agent's thread_id (automatic fallback)
+    # 
+    # To use a specific station, invoke agent with:
+    # agent.invoke({
+    #     "messages": [...],
+    #     "station_thread_id": "my-custom-station-id"
+    # })
 )
 
 # When this agent is invoked without messages, it will present the default message:
