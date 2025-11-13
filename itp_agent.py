@@ -59,8 +59,8 @@ def filter_borrowers_ready_for_itp(runtime: ToolRuntime) -> str:
     """Filter borrowers who are ready for Intent to Proceed (ITP) processing.
     
     This tool reads the borrower table CSV and filters to find borrowers who have:
-    1. A date in the "Document Date R" column
-    2. A date in at least one of the "eDisclosure D" columns
+    1. A date in the "Document Date" column
+    2. A date in BOTH of the "eDisclosure D" columns
     
     These criteria indicate the borrower has completed necessary steps and is ready
     for ITP document processing.
@@ -106,7 +106,10 @@ def filter_borrowers_ready_for_itp(runtime: ToolRuntime) -> str:
     # Find column indices
     borrower_name_idx = headers.index("Borrower Name") if "Borrower Name" in headers else -1
     loan_number_idx = headers.index("Loan Number") if "Loan Number" in headers else -1
-    doc_date_r_idx = headers.index("Document Date R") if "Document Date R" in headers else -1
+    # Try both "Document Date R" and "Document Date" for compatibility
+    doc_date_r_idx = headers.index("Document Date R") if "Document Date R" in headers else (
+        headers.index("Document Date") if "Document Date" in headers else -1
+    )
     edisclosure_indices = [i for i, h in enumerate(headers) if h == "eDisclosure D"]
     
     logger.info(f"Found columns - Borrower Name: {borrower_name_idx}, Doc Date R: {doc_date_r_idx}, eDisclosure: {edisclosure_indices}")
@@ -164,7 +167,7 @@ def filter_borrowers_ready_for_itp(runtime: ToolRuntime) -> str:
         return """No borrowers are currently ready for ITP processing.
 
 Borrowers need ALL THREE dates filled:
-1. A date in the "Document Date R" column
+1. A date in the "Document Date" column
 2. A date in the FIRST "eDisclosure D" column
 3. A date in the SECOND "eDisclosure D" column
 
@@ -289,7 +292,7 @@ Your job is to review and approve ITP documents for mortgage applications. Use t
 
 ### Filtering Tool:
 - **filter_borrowers_ready_for_itp**: Identifies borrowers ready for ITP by checking if they have:
-  - A date in "Document Date R" column
+  - A date in "Document Date" column
   - Dates in BOTH "eDisclosure D" columns
 
 ### Error Reporting Tool:
@@ -367,7 +370,7 @@ cute_finish_itp = create_remote_subagent(
     middleware_config={
         "station": {
             "variables": ["borrower_names", "reason_code"],
-            "station_id": STATION_ID  # Set via ITP_STATION_ID env var or default
+            "station_id": current_station_id  # Explicitly calculated here
         },
         "server": {
             "server_id": "princetonProd",
@@ -383,6 +386,7 @@ agent = create_deep_agent(
     agent_type="ITP-Princeton",
     system_prompt=itp_instructions,
     planning_prompt=planning_prompt,  # Use local planning prompt
+    default_starting_message="Let's review and approve Intent to Proceed for Princeton mortgage",
     tools=[filter_borrowers_ready_for_itp, report_error_to_hitl],
     subagents=[cute_linear, cute_finish_itp],  # Use local subagent definitions
     # Note: station_thread_id for station syncing will be automatically resolved from:
