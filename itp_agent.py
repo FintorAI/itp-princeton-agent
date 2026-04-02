@@ -42,7 +42,26 @@ from langchain.tools import ToolRuntime
 from langchain_core.tools import tool
 from langgraph.config import get_config
 
+from langchain.agents.middleware.types import AgentMiddleware, AgentState
+from typing_extensions import NotRequired
+
 from copilotagent import create_deep_agent, create_remote_subagent
+
+
+class ITPState(AgentState):
+    """Extended state that includes table_csv from cuteLinear subagent."""
+    table_csv: NotRequired[str | None]
+
+
+class ITPStateMiddleware(AgentMiddleware):
+    """Middleware that adds table_csv to the agent state schema.
+
+    Without this, LangGraph silently drops the table_csv field returned
+    by the cuteLinear subagent's Command(update={"table_csv": ...}),
+    forcing filter_borrowers_ready_for_itp to fail and causing retries
+    with duplicate Slack notifications.
+    """
+    state_schema = ITPState
 
 # Verify which version is loaded
 import copilotagent
@@ -283,13 +302,13 @@ Your job is to review and approve ITP documents for mortgage applications. Use t
 2. Filter ready borrowers using filter_borrowers_ready_for_itp tool
 3. If borrowers are ready: Process each with cute-finish-itp subagent
 4. If NO borrowers are ready: Report to user and end
+5. Report results and end
 
 ## Available Tools:
 
 ### Subagents (via task tool):
 - **cute-linear**: Extract borrower data from GUI with screenshots
 - **cute-finish-itp**: Complete ITP workflow for a specific borrower (ONLY if they passed the filter)
-
 ### Filtering Tool:
 - **filter_borrowers_ready_for_itp**: Identifies borrowers ready for ITP by checking if they have:
   - A date in "Document Date" column
@@ -339,7 +358,7 @@ cute_linear = create_remote_subagent(
     middleware_config={
         "station": {
             "variables": ["borrower_names", "reason_code"],
-            "station_id": current_station_id  # Explicitly calculated here
+            "station_id": current_station_id
         },
         "server": {
             "server_id": "princetonProd",
@@ -370,7 +389,7 @@ cute_finish_itp = create_remote_subagent(
     middleware_config={
         "station": {
             "variables": ["borrower_names", "reason_code"],
-            "station_id": current_station_id  # Explicitly calculated here
+            "station_id": current_station_id
         },
         "server": {
             "server_id": "princetonProd",
@@ -385,19 +404,11 @@ cute_finish_itp = create_remote_subagent(
 agent = create_deep_agent(
     agent_type="ITP-Princeton",
     system_prompt=itp_instructions,
-    planning_prompt=planning_prompt,  # Use local planning prompt
+    planning_prompt=planning_prompt,
     default_starting_message="Let's review and approve Intent to Proceed for Princeton mortgage",
     tools=[filter_borrowers_ready_for_itp, report_error_to_hitl],
-    subagents=[cute_linear, cute_finish_itp],  # Use local subagent definitions
-    # Note: station_thread_id for station syncing will be automatically resolved from:
-    # 1. Agent state (if you set state["station_thread_id"])
-    # 2. Parent agent's thread_id (automatic fallback)
-    # 
-    # To use a specific station, invoke agent with:
-    # agent.invoke({
-    #     "messages": [...],
-    #     "station_thread_id": "my-custom-station-id"
-    # })
+    subagents=[cute_linear, cute_finish_itp],
+    middleware=[ITPStateMiddleware()],
 )
 
 # When this agent is invoked without messages, it will present the default message:
@@ -419,4 +430,3 @@ if __name__ == "__main__":
     print('agent.invoke({"messages": []})')
     print('# or')
     print('agent.invoke({"messages": [{"role": "user", "content": "Review the Smith application"}]})')
-
